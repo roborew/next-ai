@@ -5,6 +5,23 @@ export default defineConfig({
     "*": "vp check --fix",
   },
   fmt: {},
+  test: {
+    // Vitest owns unit and integration tests: files colocated with source and
+    // anything under `tests/`. Playwright owns the end-to-end suite in
+    // `tests/e2e` (see playwright.config.ts), which is excluded here.
+    include: ["src/**/*.{test,spec}.?(c|m)[jt]s?(x)", "tests/**/*.{test,spec}.?(c|m)[jt]s?(x)"],
+    exclude: ["**/node_modules/**", "**/.git/**", "tests/e2e/**"],
+    // Expose afterEach globally so @testing-library/react auto-cleans between tests.
+    globals: true,
+    // React component tests render against a DOM, matching the app runtime.
+    environment: "jsdom",
+    // Registers the @testing-library/jest-dom matchers (toBeInTheDocument, ...).
+    setupFiles: ["./tests/setup.ts"],
+    // Mirror the `@/*` -> `./*` path mapping from tsconfig.json.
+    alias: {
+      "@": import.meta.dirname,
+    },
+  },
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "nextjs"],
     categories: {
