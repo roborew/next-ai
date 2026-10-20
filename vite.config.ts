@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
@@ -17,9 +18,9 @@ export default defineConfig({
     environment: "jsdom",
     // Registers the @testing-library/jest-dom matchers (toBeInTheDocument, ...).
     setupFiles: ["./tests/setup.ts"],
-    // Mirror the `@/*` -> `./*` path mapping from tsconfig.json.
+    // Mirror the `@/*` -> `./src/*` path mapping from tsconfig.json.
     alias: {
-      "@": import.meta.dirname,
+      "@": resolve(import.meta.dirname, "src"),
     },
   },
   lint: {
