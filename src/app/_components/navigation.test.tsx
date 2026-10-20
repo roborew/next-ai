@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vite-plus/test";
 import { render, screen, within } from "@testing-library/react";
 import Navigation from "./navigation";
-import { NAV_ITEMS } from "@/src/lib/nav";
+import { NAV_ITEMS } from "@/lib/nav";
 
 const usePathname = vi.fn(() => "/");
 

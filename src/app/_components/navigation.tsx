@@ -1,6 +1,6 @@
 "use client";
 
-import { isActivePath, NAV_ITEMS } from "@/src/lib/nav";
+import { isActivePath, NAV_ITEMS } from "@/lib/nav";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
