@@ -1,28 +1,27 @@
-"use client";
-
 import Link from "next/link";
-import { useState } from "react";
-import { CardSet, CardSetProps } from "./_components/CardSet";
+import { ListCardSetsApi } from "./_components/ListCardSetsApi";
+import { ListCardSets } from "./_components/ListCardSets";
+import { Suspense } from "react";
+import { CardSkeleton } from "@/lib/skeleton";
 
-const CardSetData: CardSetProps = {
-  SetName: "Sample Card Set",
-  CardList: [
-    { question: "What is the capital of France?", answer: "Paris" },
-    { question: "What is 2 + 2?", answer: "4" },
-  ],
-};
 export default function Page() {
-  const [cardSet] = useState<CardSetProps>(CardSetData);
-
   return (
     <div>
       <Link
         href="/cards/new"
-        className="mb-4 inline-block rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="mb-4 inline-block bg-blue-500 text-white px-4 py-2 rounded"
       >
         Create New Cardset
       </Link>
-      <CardSet SetName={cardSet.SetName} CardList={cardSet.CardList} />
+      <h2>Server component</h2>
+      <Suspense fallback={<CardSkeleton />}>
+        <ListCardSets />
+      </Suspense>
+
+      <div>API Request</div>
+      <Suspense fallback={<CardSkeleton />}>
+        <ListCardSetsApi />
+      </Suspense>
     </div>
   );
 }
