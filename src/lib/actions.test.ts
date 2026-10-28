@@ -156,7 +156,7 @@ describe("createCardSet", () => {
 
     const result = await createCardSet(initialState, formData);
 
-    expect(result.errors?.name).toBeDefined();
+    expect(result.errors?.name).toEqual(["Card set name is required."]);
     expect(valuesMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
   });
@@ -199,7 +199,7 @@ describe("updateCardSet", () => {
 
     const result = await updateCardSet(initialState, formData);
 
-    expect(result.errors?.name).toBeDefined();
+    expect(result.errors?.name).toEqual(["Card set name is required."]);
     expect(updateMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
   });

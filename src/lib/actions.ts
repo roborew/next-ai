@@ -12,9 +12,8 @@ const CardSetSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(1, "Project name is required.")
-    // The schema puts no limit on projects.name, but tasks.title caps at 200.
-    .max(200, "Project name must be 200 characters or fewer."),
+    .min(1, "Card set name is required.")
+    .max(200, "Card set name must be 200 characters or fewer."),
 });
 
 const CreateCardSetSc = CardSetSchema.omit({ id: true });
