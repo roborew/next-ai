@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCardSet, listCardsForSet } from "@/lib/data";
 import { CardSkeleton } from "@/lib/skeleton";
 
+import { CardForm } from "../_components/CardForm";
 import { CardSetDetail } from "../_components/CardSetDetail";
 
 // The shell renders Navigation, which reads usePathname(), so an unknown dynamic
@@ -28,5 +29,10 @@ async function CardSetContent({ params }: { params: Promise<{ id: string }> }) {
 
   const cards = await listCardsForSet(id);
 
-  return <CardSetDetail cardSet={cardSet} cards={cards} />;
+  return (
+    <div>
+      <CardForm cardSetId={id} />
+      <CardSetDetail cardSet={cardSet} cards={cards} />
+    </div>
+  );
 }

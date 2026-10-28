@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { cardSets } from "@/db/schema";
+import { cardSets, cards } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -87,4 +87,52 @@ export async function updateCardSet(
   }
   revalidatePath("/cards");
   redirect("/cards");
+}
+
+const CreateCardSchema = z.object({
+  cardSetId: z.uuid("Invalid card set."),
+  question: z.string().trim().min(1, "Question is required."),
+  answer: z.string().trim().min(1, "Answer is required."),
+});
+
+export type CreateCardState = {
+  errors?: {
+    cardSetId?: string[];
+    question?: string[];
+    answer?: string[];
+  };
+  message: string | null;
+};
+
+export async function createCard(
+  _prevState: CreateCardState,
+  formData: FormData,
+): Promise<CreateCardState> {
+  const validatedFields = CreateCardSchema.safeParse({
+    cardSetId: formData.get("cardSetId"),
+    question: formData.get("question"),
+    answer: formData.get("answer"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Validation failed.",
+    };
+  }
+
+  const { cardSetId, question, answer } = validatedFields.data;
+
+  try {
+    await db.insert(cards).values({ cardSetId, question, answer });
+  } catch (error) {
+    console.error("Error adding card:", error);
+    return {
+      errors: { question: ["Failed to add card."] },
+      message: "Failed to add card.",
+    };
+  }
+
+  revalidatePath(`/cards/${cardSetId}`);
+  return { message: "Card added." };
 }
