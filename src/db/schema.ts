@@ -9,6 +9,9 @@ export const cardSets = pgTable("card_sets", {
 
 export const cards = pgTable("cards", {
   id: uuid("id").defaultRandom().primaryKey(),
+  cardSetId: uuid("card_set_id")
+    .notNull()
+    .references(() => cardSets.id, { onDelete: "cascade" }),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
