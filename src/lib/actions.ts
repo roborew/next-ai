@@ -43,9 +43,11 @@ export async function createCardSet(
       message: "Validation failed.",
     };
   }
+  let createdId: string | null = null;
   try {
     const { name } = validatedFields.data;
-    await db.insert(cardSets).values({ name });
+    const [created] = await db.insert(cardSets).values({ name }).returning({ id: cardSets.id });
+    createdId = created?.id ?? null;
   } catch (error) {
     console.error("Error creating card set:", error);
     return {
@@ -53,8 +55,16 @@ export async function createCardSet(
       message: "Failed to create card set.",
     };
   }
+
+  if (!createdId) {
+    return {
+      errors: { name: ["Failed to create card set."] },
+      message: "Failed to create card set.",
+    };
+  }
+
   revalidatePath("/cards");
-  redirect("/cards");
+  redirect(`/cards/${createdId}`);
 }
 
 export async function updateCardSet(

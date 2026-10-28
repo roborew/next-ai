@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-import { createCard } from "./actions";
+import { createCard, createCardSet } from "./actions";
 
 const { insertMock, valuesMock } = vi.hoisted(() => {
   const valuesMock = vi.fn();
@@ -23,6 +24,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const revalidatePathMock = vi.mocked(revalidatePath);
+const redirectMock = vi.mocked(redirect);
 
 const cardSetId = "11111111-1111-4111-8111-111111111111";
 
@@ -41,6 +43,7 @@ beforeEach(() => {
   valuesMock.mockReset();
   valuesMock.mockResolvedValue(undefined);
   revalidatePathMock.mockReset();
+  redirectMock.mockReset();
 });
 
 describe("createCard", () => {
@@ -112,5 +115,42 @@ describe("createCard", () => {
 
     expect(result.errors?.question).toEqual(["Failed to add card."]);
     expect(result.message).toBe("Failed to add card.");
+  });
+});
+
+describe("createCardSet", () => {
+  const newSetId = "22222222-2222-4222-8222-222222222222";
+  const returningMock = vi.fn();
+
+  beforeEach(() => {
+    returningMock.mockReset();
+    returningMock.mockResolvedValue([{ id: newSetId }]);
+    valuesMock.mockReturnValue({ returning: returningMock });
+  });
+
+  it("redirects to the new card set page", async () => {
+    const formData = formDataFor({ name: "Solid Principles" });
+
+    await createCardSet(initialState, formData);
+
+    expect(redirectMock).toHaveBeenCalledWith(`/cards/${newSetId}`);
+  });
+
+  it("revalidates the cards list after creating a set", async () => {
+    const formData = formDataFor({ name: "Solid Principles" });
+
+    await createCardSet(initialState, formData);
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/cards");
+  });
+
+  it("rejects an empty name without inserting", async () => {
+    const formData = formDataFor({ name: "   " });
+
+    const result = await createCardSet(initialState, formData);
+
+    expect(result.errors?.name).toBeDefined();
+    expect(valuesMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });
