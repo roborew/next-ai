@@ -68,6 +68,16 @@ describe("CardSetForm (edit)", () => {
     expect(screen.getByLabelText("Card Set Name")).toHaveValue("Solid Principles");
   });
 
+  it("carries the card set id in a hidden field", () => {
+    const { container } = render(
+      <CardSetForm cardSet={{ id: "set-1", name: "Solid Principles" }} />,
+    );
+
+    const hidden = container.querySelector('input[name="id"]');
+    expect(hidden).toHaveValue("set-1");
+    expect(hidden).toHaveAttribute("type", "hidden");
+  });
+
   it("offers an update button instead of a create button", () => {
     render(<CardSetForm cardSet={{ id: "set-1", name: "Solid Principles" }} />);
 

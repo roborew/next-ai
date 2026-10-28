@@ -16,6 +16,7 @@ export const CardSetForm = ({ cardSet }: { cardSet?: { id: string; name: string 
 
   return (
     <form className="mg-4" action={formAction}>
+      {isEdit && <input type="hidden" name="id" value={cardSet.id} />}
       <div>
         <label htmlFor="name" className="block text-sm font-medium text-gray-700">
           Card Set Name

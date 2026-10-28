@@ -8,21 +8,20 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 const CardSetSchema = z.object({
-  id: z.string(),
+  id: z.uuid("Invalid card set."),
   name: z
     .string()
     .trim()
     .min(1, "Project name is required.")
     // The schema puts no limit on projects.name, but tasks.title caps at 200.
     .max(200, "Project name must be 200 characters or fewer."),
-  createdAt: z.string(),
-  updatedAt: z.string(),
 });
 
-const CreateCardSetSc = CardSetSchema.omit({ id: true, createdAt: true, updatedAt: true });
+const CreateCardSetSc = CardSetSchema.omit({ id: true });
 
 export type CreateCardSetState = {
   errors?: {
+    id?: string[];
     name?: string[];
     description?: string[];
   };
@@ -73,10 +72,7 @@ export async function updateCardSet(
 ): Promise<CreateCardSetState> {
   const validatedFields = CardSetSchema.safeParse({
     id: formData.get("id"),
-    userId: formData.get("userId"),
     name: formData.get("name"),
-    createdAt: formData.get("createdAt"),
-    updatedAt: formData.get("updatedAt"),
   });
 
   if (!validatedFields.success) {
@@ -85,8 +81,10 @@ export async function updateCardSet(
       message: "Validation failed.",
     };
   }
+
+  const { id, name } = validatedFields.data;
+
   try {
-    const { id, name } = validatedFields.data;
     await db.update(cardSets).set({ name }).where(eq(cardSets.id, id));
   } catch (error) {
     console.error("Error updating card set:", error);
@@ -95,8 +93,10 @@ export async function updateCardSet(
       message: "Failed to update card set.",
     };
   }
+
   revalidatePath("/cards");
-  redirect("/cards");
+  revalidatePath(`/cards/${id}`);
+  redirect(`/cards/${id}`);
 }
 
 const CreateCardSchema = z.object({
