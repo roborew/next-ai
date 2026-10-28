@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import { render, screen } from "@testing-library/react";
-
 import { CardSetDetail } from "./CardSetDetail";
 
 const cardSet = { id: "set-1", name: "Solid Principles" };

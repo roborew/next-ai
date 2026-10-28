@@ -57,4 +57,10 @@ test.describe("Card set management", () => {
     await page.getByRole("link", { name: "Cards" }).click();
     await expect(page.getByRole("link", { name: renamedSet })).toBeVisible();
   });
+
+  test("shows the not-found page for a malformed card set id", async ({ page }) => {
+    await page.goto("/cards/de54a30e-0cec-4b57-b42d-eeb8bb69f7c6sdf");
+
+    await expect(page.getByText("This page could not be found.")).toBeVisible();
+  });
 });
