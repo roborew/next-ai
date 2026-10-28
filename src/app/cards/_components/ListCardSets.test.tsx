@@ -30,11 +30,30 @@ describe("ListCardSets", () => {
     expect(screen.getByRole("heading", { name: "Design Patterns", level: 3 })).toBeInTheDocument();
   });
 
-  it("renders no card sets when there are none", async () => {
+  it("links each card set to its detail page", async () => {
+    listCardSetsMock.mockResolvedValue([
+      { id: "set-1", name: "Solid Principles" },
+      { id: "set-2", name: "Design Patterns" },
+    ]);
+
+    render(await ListCardSets());
+
+    expect(screen.getByRole("link", { name: "Solid Principles" })).toHaveAttribute(
+      "href",
+      "/cards/set-1",
+    );
+    expect(screen.getByRole("link", { name: "Design Patterns" })).toHaveAttribute(
+      "href",
+      "/cards/set-2",
+    );
+  });
+
+  it("shows a friendly empty state when there are no card sets", async () => {
     listCardSetsMock.mockResolvedValue([]);
 
     render(await ListCardSets());
 
     expect(screen.queryAllByRole("heading")).toHaveLength(0);
+    expect(screen.getByText("No card sets yet. Create one to get started.")).toBeInTheDocument();
   });
 });
