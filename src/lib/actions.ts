@@ -29,16 +29,6 @@ export type CreateCardSetState = {
   message: string | null;
 };
 
-export async function getCardSets(): Promise<{ id: string; name: string }[]> {
-  try {
-    const cardSetsList = await db.select().from(cardSets);
-    return cardSetsList.map((set) => ({ id: set.id, name: set.name }));
-  } catch (error) {
-    console.error("Error fetching card sets:", error);
-    return [];
-  }
-}
-
 export async function createCardSet(
   _prevState: CreateCardSetState,
   formData: FormData,

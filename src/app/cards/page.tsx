@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ListCardSetsApi } from "./_components/ListCardSetsApi";
 import { ListCardSets } from "./_components/ListCardSets";
 import { Suspense } from "react";
 import { CardSkeleton } from "@/lib/skeleton";
@@ -13,13 +12,9 @@ export default function Page() {
       >
         Create New Cardset
       </Link>
-      <h2>Server component</h2>
       <Suspense fallback={<CardSkeleton />}>
         <ListCardSets />
       </Suspense>
-
-      <div>API Request</div>
-      <ListCardSetsApi />
     </div>
   );
 }
