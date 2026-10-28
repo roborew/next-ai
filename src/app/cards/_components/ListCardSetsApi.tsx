@@ -28,7 +28,7 @@ export const ListCardSetsApi = () => {
         setIsLoading(false);
       }
     }
-    loadCards();
+    void loadCards();
   }, []);
 
   return (

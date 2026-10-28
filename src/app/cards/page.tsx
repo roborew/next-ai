@@ -19,9 +19,7 @@ export default function Page() {
       </Suspense>
 
       <div>API Request</div>
-      <Suspense fallback={<CardSkeleton />}>
-        <ListCardSetsApi />
-      </Suspense>
+      <ListCardSetsApi />
     </div>
   );
 }
