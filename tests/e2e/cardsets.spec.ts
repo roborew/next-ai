@@ -11,8 +11,10 @@ test.describe("Card set management", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Cards" })).toBeVisible();
 
     // Create a card set and land on its own page.
+    // `.filter({ visible: true })` skips the hidden copy Next streams before the
+    // page is revealed; otherwise fill waits on that copy forever.
     await page.getByRole("link", { name: "Create New Cardset" }).click();
-    await page.getByLabel("Card Set Name").fill(setName);
+    await page.getByLabel("Card Set Name").filter({ visible: true }).fill(setName);
     await page.getByRole("button", { name: "Create Card Set" }).click();
 
     await expect(page).toHaveURL(/\/cards\/[0-9a-f-]{36}$/);
@@ -20,13 +22,16 @@ test.describe("Card set management", () => {
     await expect(page.getByRole("heading", { level: 1, name: setName })).toBeVisible();
 
     // Add two cards; each submission revalidates the set page.
-    await page.getByLabel("Question").fill("What is 2 + 2?");
-    await page.getByLabel("Answer").fill("4");
+    await page.getByLabel("Question").filter({ visible: true }).fill("What is 2 + 2?");
+    await page.getByLabel("Answer").filter({ visible: true }).fill("4");
     await page.getByRole("button", { name: "Add Card" }).click();
     await expect(page.getByRole("button", { name: "What is 2 + 2?" })).toBeVisible();
 
-    await page.getByLabel("Question").fill("What is the capital of France?");
-    await page.getByLabel("Answer").fill("Paris");
+    await page
+      .getByLabel("Question")
+      .filter({ visible: true })
+      .fill("What is the capital of France?");
+    await page.getByLabel("Answer").filter({ visible: true }).fill("Paris");
     await page.getByRole("button", { name: "Add Card" }).click();
     await expect(
       page.getByRole("button", { name: "What is the capital of France?" }),
@@ -48,7 +53,7 @@ test.describe("Card set management", () => {
     // Rename the set and see the update on the set page and the list.
     await page.getByRole("link", { name: "Edit Card Set" }).click();
     await expect(page).toHaveURL(`/cards/${setId}/edit`);
-    await page.getByLabel("Card Set Name").fill(renamedSet);
+    await page.getByLabel("Card Set Name").filter({ visible: true }).fill(renamedSet);
     await page.getByRole("button", { name: "Update Card Set" }).click();
 
     await expect(page).toHaveURL(`/cards/${setId}`);

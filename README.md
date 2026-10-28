@@ -20,6 +20,19 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Testing
+
+```bash
+pnpm test      # unit and component tests (Vitest)
+pnpm test:e2e  # end-to-end tests (Playwright)
+```
+
+The e2e suite never touches the development database. It uses a separate
+database derived from `DATABASE_URL` (named `<database>_test`, or
+`E2E_DATABASE_URL` when set), creating and migrating it on first run and
+clearing it before and after every run. It serves the app on port `3100` from a
+separate `.next-e2e` build directory, so it can run alongside `pnpm dev`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
