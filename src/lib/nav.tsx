@@ -10,6 +10,16 @@ export const NAV_ITEMS = [
     icon: "💬",
   },
   {
+    label: "Image Generation",
+    href: "/image",
+    icon: "🖼️",
+  },
+  {
+    label: "AI Examples",
+    href: "/examples",
+    icon: "🤖",
+  },
+  {
     label: "Cards",
     href: "/cards",
     icon: "🃏",
