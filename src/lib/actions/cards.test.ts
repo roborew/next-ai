@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createCard, createCardSet, updateCardSet } from "./actions";
+import { createCard, createCardSet, updateCardSet } from "./cards";
 
 const { insertMock, valuesMock, updateMock, setMock, whereMock } = vi.hoisted(() => {
   const valuesMock = vi.fn();

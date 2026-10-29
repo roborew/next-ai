@@ -1,5 +1,5 @@
 "use client";
-import { createCardSet, updateCardSet, type CreateCardSetState } from "@/lib/actions";
+import { createCardSet, updateCardSet, type CreateCardSetState } from "@/lib/actions/cards";
 import { useActionState, useState } from "react";
 
 const initialState: CreateCardSetState = {

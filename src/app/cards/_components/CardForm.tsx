@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { createCard, type CreateCardState } from "@/lib/actions";
+import { createCard, type CreateCardState } from "@/lib/actions/cards";
 
 const initialState: CreateCardState = {
   errors: {},

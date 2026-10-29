@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { createCard } from "@/lib/actions";
+import { createCard } from "@/lib/actions/cards";
 
 import { CardForm } from "./CardForm";
 
 // CardForm is a Client Component, so the server action it imports must exist as
 // a callable stub before it renders.
-vi.mock("@/lib/actions", () => ({
+vi.mock("@/lib/actions/cards", () => ({
   createCard: vi.fn(async () => ({ message: "" })),
 }));
 
