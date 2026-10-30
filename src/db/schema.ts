@@ -1,5 +1,7 @@
 import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
+export { user, session, account, verification } from "./auth-schema";
+
 export const cardSets = pgTable("card_sets", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
