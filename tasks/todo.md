@@ -1,172 +1,143 @@
-# Tasks: Flashcards — card set management
+# Tasks: Per-user chat history (Better Auth + one persisted conversation)
 
-Plan: `tasks/plan.md`. Every behavioral task follows TDD (red → green → refactor).
+Plan: `tasks/plan.md`. Every behavioural task follows TDD (red → green → refactor).
 Commands (from repo root): `pnpm test`, `pnpm build`, `pnpm lint`, `pnpm test:e2e`, `pnpm db:generate`, `pnpm db:migrate`.
 
-## Task 1: Schema — relate cards to card sets
+## Task 1: Install and configure Better Auth (schema + handler)
 
-**Description:** `cards` currently has no link to `card_sets`. Add a `cardSetId` column (`card_set_id` uuid NOT NULL, references `card_sets.id`, ON DELETE CASCADE), generate the drizzle migration, and apply it.
-
-**Acceptance criteria:**
-
-- [x] `src/db/schema.ts` declares the FK with cascade delete.
-- [x] A migration exists under `drizzle/` adding the column, with orphaned dev rows cleaned first.
-- [x] Migration applied when a DB is reachable (otherwise reported as blocked).
-
-**Verification:**
-
-- [x] `pnpm db:generate` produces the migration.
-- [x] `pnpm db:migrate` (or `db:push`) succeeds against the dev DB.
-- [x] `pnpm test` still green.
-
-**Dependencies:** None
-**Files likely touched:** `src/db/schema.ts`, `drizzle/**` (generated)
-**Estimated scope:** Small
-
-## Task 2: Remove API + legacy duplication
-
-**Description:** The card-set list is fetched twice (Server Component + REST/client fetch) and a legacy playground page exists. Keep the Server Actions + Server Components path only.
+**Description:** Add `better-auth`, create the server instance in `src/lib/auth.ts` (email + password enabled, Drizzle adapter over the existing `db`, `provider: "pg"`), mount the catch-all route `src/app/api/auth/[...all]/route.ts` with `toNextJsHandler`, generate the auth tables with `npx auth@latest generate` into `src/db/auth-schema.ts`, and re-export them from `src/db/schema.ts` so `drizzle-kit` sees them. Document `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` in `.env.example` and generate + apply the migration.
 
 **Acceptance criteria:**
 
-- [x] `src/app/api/cardsets/route.tsx`, `ListCardSetsApi.tsx` + `ListCardSetsApi.test.tsx`, `cards/old/page.tsx` deleted.
-- [x] `getCardSets()` removed from `src/lib/actions.ts` (duplicates `listCardSets`).
-- [x] `/cards` page renders only the Server Component list (no "API Request" section).
+- [x] `src/lib/auth.ts` exports `auth` = `betterAuth({ database: drizzleAdapter(db, { provider: "pg" }), emailAndPassword: { enabled: true } })` — no social providers, no verification, no plugins.
+- [x] `src/app/api/auth/[...all]/route.ts` exports `GET` and `POST` from `toNextJsHandler(auth)`.
+- [x] `src/db/schema.ts` re-exports the generated `user`, `session`, `account`, `verification` tables; a migration under `drizzle/` creates them.
+- [x] `.env.example` documents `BETTER_AUTH_SECRET` (32+ chars) and `BETTER_AUTH_URL`.
+- [x] `src/db/index.ts` is unchanged (same pool, no second connection).
 
 **Verification:**
 
-- [x] `pnpm test` green.
-- [x] `pnpm build` succeeds.
-- [x] `pnpm lint` reports no new issues from these changes.
+- [x] `pnpm db:generate` produces an auth-tables migration; `pnpm db:migrate` applies it against the dev DB.
+- [x] `pnpm test` green; `pnpm build` succeeds.
+- [x] Manual: `GET /api/auth/ok` returns 200 from `pnpm dev`.
 
 **Dependencies:** None
-**Files likely touched:** the files above + `src/app/cards/page.tsx`
-**Estimated scope:** Small
+**Files likely touched:** `package.json`, `src/lib/auth.ts` (new), `src/app/api/auth/[...all]/route.ts` (new), `src/db/auth-schema.ts` + `drizzle/**` (generated), `src/db/schema.ts`, `.env.example`
+**Estimated scope:** Medium (generated files excluded)
+
+## Task 2: Sign-in / sign-up page and sign-out
+
+**Description:** Add `src/lib/auth-client.ts` (`createAuthClient()` from `better-auth/react`) and a single `/login` client page with a sign-in ⇄ sign-up toggle (email + password, labelled fields, inline error from `authClient`). Successful auth redirects to `/chat`; add a "Sign out" button to the existing chat UI that calls `authClient.signOut()` then navigates to `/login`. The page must not crash when `useSession` is still loading.
+
+**Acceptance criteria:**
+
+- [x] `/login` submits `authClient.signUp.email` in sign-up mode and `authClient.signIn.email` in sign-in mode, with required email/password fields and a visible error on failure.
+- [x] Toggle switches modes without a reload; submit button label matches the mode.
+- [x] Successful auth navigates to `/chat`; sign-out clears the session and navigates to `/login`.
+- [x] Component test (mocked `authClient`) covers: mode toggle, successful submit navigates, failed submit shows the error.
+
+**Verification:**
+
+- [x] Failing test first (red), then `pnpm test` green.
+- [x] Manual: create an account, sign out, sign back in — session persists across reload.
+
+**Dependencies:** Task 1
+**Files likely touched:** `src/lib/auth-client.ts` (new), `src/app/login/page.tsx` (new), `src/app/login/page.test.tsx` (new), `src/app/chat/page.tsx`
+**Estimated scope:** Medium
 
 ## Checkpoint: After Tasks 1–2
 
-- [x] Tests pass, build clean, duplication gone.
+- [x] An account can be created, signed into, and signed out; `/chat` is not yet guarded.
+- [x] `pnpm test` and `pnpm build` pass.
 
-## Task 3: Card sets are selectable
+## Task 3: `chat_history` table and data layer
 
-**Description:** The sets on `/cards` are inert divs. Turn each into a link to its detail page `/cards/{id}`, show an empty state when there are no sets, and add the `<h1>Cards</h1>` heading the e2e spec expects.
+**Description:** Add a `chat_history` Drizzle table and `src/lib/chat-history.ts` with `getChatHistory(userId)` and `saveChatHistory(userId, messages)`. The table has a `text` `user_id` (Better Auth ids are text) that is `unique` and references `user.id` with `ON DELETE CASCADE`, a `jsonb` `messages` column typed as `UIMessage[]`, and `updated_at`. Saving upserts on the unique `user_id` and keeps only the newest 20 messages. Generate and apply the migration.
 
 **Acceptance criteria:**
 
-- [x] Each card set renders as a link with `href="/cards/{id}"`.
-- [x] Friendly empty-state message when the list is empty.
-- [x] `/cards` renders an `<h1>Cards</h1>`.
+- [x] `getChatHistory` returns `[]` for a user with no row and the stored array otherwise.
+- [x] `saveChatHistory` inserts on first save and updates the existing row afterwards (`onConflictDoUpdate`), always setting `updated_at`.
+- [x] Saving more than 20 messages stores exactly the newest 20, in order.
+- [x] Table has `user_id` unique + FK to `user.id` with cascade delete; migration committed.
 
 **Verification:**
 
-- [x] Focused test first (red): `ListCardSets.test.tsx` asserts links + empty state.
-- [x] `pnpm test` green after implementation.
+- [x] Data-layer tests with mocked `db` (red first), then `pnpm test` green.
+- [x] `pnpm db:generate` + `pnpm db:migrate` succeed against the dev DB.
 
-**Dependencies:** None (Task 4 makes the link targets real.)
-**Files likely touched:** `ListCardSets.tsx`, `ListCardSets.test.tsx`, `src/app/cards/page.tsx`
+**Dependencies:** Task 1 (user table)
+**Files likely touched:** `src/db/schema.ts`, `src/lib/chat-history.ts` (new), `src/lib/chat-history.test.ts` (new), `drizzle/**` (generated)
 **Estimated scope:** Small
 
-## Task 4: Card set detail page `/cards/[id]`
+## Task 4: `/api/chat` requires a session and persists the turn
 
-**Description:** Server Component page that shows a set's name, its flashcards (click-to-reveal via existing `Card`/`CardSet`), an "Edit Card Set" link, and not-found handling for unknown ids. Adds `getCardSet(id)` and `listCardsForSet(id)` to the data layer.
+**Description:** Make `POST /api/chat` session-aware: resolve the session from the request headers (`auth.api.getSession`), return 401 without one (before rate limiting), load the stored history, append the newly submitted message from the body (`{ message }`), stream the reply with `originalMessages` set, and save the trimmed message list in `onEnd`. The IP rate limiter and its configuration stay unchanged.
 
 **Acceptance criteria:**
 
-- [x] `src/lib/data.ts` exports `getCardSet` and `listCardsForSet` (tested with mocked db).
-- [x] `/cards/[id]` renders set name, its cards, "Edit Card Set" link to `/cards/[id]/edit`.
-- [x] Unknown id → not-found handling (e.g. `notFound()`).
-- [x] Next 16 async `params` used correctly.
+- [x] No session → 401 and neither `streamText` nor `convertToModelMessages` is called.
+- [x] With a session → `getChatHistory(session.user.id)` is read, the incoming message is appended, and the model receives the combined history.
+- [x] `onEnd` calls `saveChatHistory` with the completed message list (including the assistant reply); a >20-message result is trimmed to 20.
+- [x] Existing rate-limit tests (10/min sliding window, 429 + `Retry-After`, IP from `x-forwarded-for`) still pass.
 
 **Verification:**
 
-- [x] Data-layer tests (red first), detail-component test (render resolved output like `ListCardSets.test.tsx`).
-- [x] `pnpm test` green; manual dev visit shows a set's cards.
+- [x] Route tests updated/extended with mocked `auth` and `@/lib/chat-history` (red first), then `pnpm test` green.
 
-**Dependencies:** Task 1 (FK), Task 3 (link targets).
-**Files likely touched:** `src/lib/data.ts` (+ test), `src/app/cards/[id]/page.tsx`, `src/app/cards/_components/CardSetDetail.tsx` (+ test)
-**Estimated scope:** Medium
+**Dependencies:** Tasks 1, 3
+**Files likely touched:** `src/app/api/chat/route.ts`, `src/app/api/chat/route.test.ts`
+**Estimated scope:** Small
 
 ## Checkpoint: After Tasks 3–4
 
-- [x] Can browse `/cards` → select a set → see its flashcards.
+- [x] A signed-in request to `/api/chat` persists the turn; a signed-out request gets 401.
+- [x] `pnpm test` green.
 
-## Task 5: Add cards to a set (`CardForm` + `createCard` action)
+## Task 5: Chat page loads the user's history
 
-**Description:** Implement the empty `CardForm.tsx` as the add-card form (question + answer) and a `createCard` server action that validates, inserts with the set id, and revalidates the set page. Wire both into `/cards/[id]` so added cards appear.
+**Description:** Split the chat route into a Server Component page and a client component. `src/app/chat/page.tsx` resolves the session, redirects to `/login` when absent, loads `getChatHistory(user.id)`, and renders `<Chat initialMessages={...} />`. `src/app/chat/chat.tsx` holds the existing `useChat` UI (now seeded with `messages: initialMessages`) plus the sign-out button; its tests move with it.
 
 **Acceptance criteria:**
 
-- [x] `createCard` action: zod validation (set id, question, answer), insert, `revalidatePath`, error state; tested with mocked db.
-- [x] `CardForm`: labelled required Question/Answer fields, submits via `useActionState`, shows action errors; tested in the style of `CardSetForm.test.tsx`.
-- [x] Form rendered on `/cards/[id]`; submitted card appears in the list after revalidation.
+- [x] `/chat` without a session redirects to `/login` (covered by a page test with mocked `auth`/`redirect`).
+- [x] `/chat` with a session renders the chat seeded with the stored messages; no history renders the empty state.
+- [x] Client component still renders role labels, ignores non-text parts, updates input, and sends on submit (existing assertions preserved).
+- [x] No `useChat` call on the server; `headers()`/`redirect` used per the Next 16 async APIs.
 
 **Verification:**
 
-- [x] Action tests + component tests (red first), then `pnpm test` green.
-- [x] Manual: add a card on the set page and see it appear.
+- [x] Page guard test + moved client tests (red first), then `pnpm test` green.
+- [x] `pnpm build` succeeds.
+- [x] Manual: send a message, reload `/chat`, message pair is still there.
 
-**Dependencies:** Task 4.
-**Files likely touched:** `src/lib/actions.ts` (+ test), `CardForm.tsx` (+ test), `src/app/cards/[id]/page.tsx`
+**Dependencies:** Tasks 2, 3, 4
+**Files likely touched:** `src/app/chat/page.tsx`, `src/app/chat/chat.tsx` (new), `src/app/chat/chat.test.tsx` (moved from `page.test.tsx`), `src/app/chat/page.test.tsx`
 **Estimated scope:** Medium
 
-## Task 6: Create flow lands on the new set's page
+## Task 6: E2E for auth and the chat guard
 
-**Description:** `createCardSet` currently redirects to `/cards`. Change it to insert with `.returning({ id })` and redirect to `/cards/{id}` so the user can immediately add cards.
-
-**Acceptance criteria:**
-
-- [x] Action test (red first) asserts `redirect("/cards/{newId}")`.
-- [x] Implementation uses the returned id.
-
-**Verification:**
-
-- [x] `pnpm test` green; manual: create a set → land on its page.
-
-**Dependencies:** Task 4 (target page exists).
-**Files likely touched:** `src/lib/actions.ts` (+ test)
-**Estimated scope:** Small
-
-## Task 7: Edit card set (rename)
-
-**Description:** Fix and finish the edit flow. `updateCardSet` currently validates `userId`/`createdAt`/`updatedAt` that the form never sends (so it always fails), and `CardSetForm` edit mode carries no hidden `id`. Validate only id + name, redirect back to the set page, add the hidden id, and add the edit page.
+**Description:** Update the Playwright harness for auth: add the auth and chat tables to the truncate lists, pass `BETTER_AUTH_URL` and a test-only `BETTER_AUTH_SECRET` to the e2e server, and add a spec covering sign-up → `/chat` → reload → sign-out → `/login`, plus the signed-out redirect. Update the existing navigation spec, which currently expects `/chat` to render for anonymous visitors.
 
 **Acceptance criteria:**
 
-- [x] Failing test first: edit form carries a hidden `id` field.
-- [x] `updateCardSet` validates id (uuid) + name only, updates, revalidates, redirects to `/cards/{id}`; tested (valid + invalid).
-- [x] `/cards/[id]/edit` renders prefilled `CardSetForm`; rename reflected on `/cards` and the set page.
+- [x] `tests/e2e/global-setup.ts` and `global-teardown.ts` truncate `"user", "session", "account", "verification", "chat_history"`.
+- [x] `playwright.config.ts` supplies `BETTER_AUTH_URL` (= base URL) and a test-only `BETTER_AUTH_SECRET` to the web server.
+- [x] New spec signs up with a unique email, lands on `/chat`, reloads and stays signed in, signs out, and ends on `/login`.
+- [x] `navigation.spec.ts` asserts the signed-out Chat link redirects to `/login` instead of `/chat`.
+- [x] Specs do not call the AI model (no API key / cost dependency).
 
 **Verification:**
 
-- [x] Action + component tests (red first); `pnpm test` green.
-- [x] Manual: rename a set end to end.
+- [x] `pnpm test:e2e` green against a reachable database (dev server is started by Playwright).
+- [x] `pnpm test` and `pnpm build` still pass.
 
-**Dependencies:** Task 4.
-**Files likely touched:** `src/lib/actions.ts` (+ test), `CardSetForm.tsx` (+ test), `src/app/cards/[id]/edit/page.tsx`
-**Estimated scope:** Medium
-
-## Checkpoint: After Tasks 5–7
-
-- [x] Full management loop works manually: create set → add cards → select → edit.
-
-## Task 8: E2E user journey (Playwright)
-
-**Description:** One spec covering the full user journey: create a set, land on its page, add cards, flip a card, go back to `/cards`, select the set, edit its name, see the update.
-
-**Acceptance criteria:**
-
-- [x] `tests/e2e/cardsets.spec.ts` covers: create → add ≥2 cards → flip reveals → select from `/cards` → rename.
-- [x] Test data cleaned up or uniquely named so reruns are stable.
-
-**Verification:**
-
-- [x] `pnpm test:e2e` green (needs reachable DB; dev server auto-starts).
-
-**Dependencies:** Tasks 1–7.
-**Files likely touched:** `tests/e2e/cardsets.spec.ts`, maybe `tests/fixtures/**`
+**Dependencies:** Tasks 1–5
+**Files likely touched:** `tests/e2e/global-setup.ts`, `tests/e2e/global-teardown.ts`, `tests/e2e/navigation.spec.ts`, `tests/e2e/auth.spec.ts` (new), `playwright.config.ts`
 **Estimated scope:** Medium
 
 ## Checkpoint: Complete
 
-- [x] All acceptance criteria met; suites green.
+- [x] All acceptance criteria met; `pnpm test`, `pnpm build`, `pnpm test:e2e` green.
+- [x] Manual two-account check: each account sees only its own last 20 messages.
 - [x] Ready for review.
