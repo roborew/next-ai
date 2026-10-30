@@ -1,39 +1,21 @@
-"use client";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { getChatHistory } from "@/lib/chat-history";
+import Chat from "./chat";
 
-import { useChat } from "@ai-sdk/react";
-import { useState } from "react";
+// The page reads the session from request headers, so it blocks on the server
+// instead of prerendering a static shell.
+export const instant = false;
 
-export default function Chat() {
-  const [input, setInput] = useState("");
-  const { messages, sendMessage } = useChat();
-  return (
-    <div className="flex flex-col w-full max-w-md py-24 mx-auto stretch">
-      {messages.map((message) => (
-        <div key={message.id} className="whitespace-pre-wrap">
-          {message.role === "user" ? "User: " : "AI: "}
-          {message.parts.map((part, i) => {
-            switch (part.type) {
-              case "text":
-                return <div key={`${message.id}-${i}`}>{part.text}</div>;
-            }
-          })}
-        </div>
-      ))}
+export default async function ChatPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          sendMessage({ text: input });
-          setInput("");
-        }}
-      >
-        <input
-          className="fixed dark:bg-zinc-900 bottom-0 w-full max-w-md p-2 mb-8 border border-zinc-300 dark:border-zinc-800 rounded shadow-xl"
-          value={input}
-          placeholder="Say something..."
-          onChange={(e) => setInput(e.currentTarget.value)}
-        />
-      </form>
-    </div>
-  );
+  if (!session) {
+    redirect("/login");
+  }
+
+  const initialMessages = await getChatHistory(session.user.id);
+
+  return <Chat initialMessages={initialMessages} />;
 }
