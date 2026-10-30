@@ -29,6 +29,12 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+vi.mock("../_components/CardFormAi", () => ({
+  default: ({ cardSetId }: { cardSetId: string }) => (
+    <div aria-label="AI card form">{cardSetId}</div>
+  ),
+}));
+
 const getCardSetMock = vi.mocked(getCardSet);
 const listCardsForSetMock = vi.mocked(listCardsForSet);
 
@@ -94,5 +100,11 @@ describe("Card set page", () => {
 
     await expect(renderCardSetPage("missing")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(listCardsForSetMock).not.toHaveBeenCalled();
+  });
+
+  it("renders the AI card form for the card set", async () => {
+    await renderCardSetPage("set-1");
+
+    expect(screen.getByLabelText("AI card form")).toHaveTextContent("set-1");
   });
 });

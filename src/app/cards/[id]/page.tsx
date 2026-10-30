@@ -6,6 +6,7 @@ import { CardSkeleton } from "@/lib/skeleton";
 
 import { CardForm } from "../_components/CardForm";
 import { CardSetDetail } from "../_components/CardSetDetail";
+import CardFormAi from "../_components/CardFormAi";
 
 // The shell renders Navigation, which reads usePathname(), so an unknown dynamic
 // segment cannot produce a static shell at build time. Allow it to block.
@@ -31,6 +32,7 @@ async function CardSetContent({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div>
+      <CardFormAi cardSetId={id} />
       <CardForm cardSetId={id} />
       <CardSetDetail cardSet={cardSet} cards={cards} />
     </div>

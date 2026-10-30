@@ -8,7 +8,12 @@ import { z } from "zod";
 const UuidSchema = z.uuid();
 
 export const listCardSets = async () => {
-  const data = await db.select().from(cardSets).orderBy(cardSets.createdAt, desc(cardSets.name));
+  const data = await db
+    .select()
+    .from(cardSets)
+    // Likely intended: newest first, then alphabetical. The old call ordered
+    // createdAt ascending because `desc` only applied to the name argument.
+    .orderBy(desc(cardSets.createdAt), cardSets.name);
   return data.map((set) => ({ id: set.id, name: set.name }));
 };
 
@@ -27,4 +32,26 @@ export const listCardsForSet = async (cardSetId: string) => {
   }
 
   return db.select().from(cards).where(eq(cards.cardSetId, cardSetId));
+};
+
+export type cards = {
+  question: string;
+  answer: string;
+}[];
+export const createCards = async (cardSetId: string, newCards: cards) => {
+  if (!UuidSchema.safeParse(cardSetId).success) {
+    return null;
+  }
+
+  if (newCards.length === 0) {
+    return [];
+  }
+
+  const values = newCards.map((card) => ({
+    cardSetId,
+    question: card.question.trim(),
+    answer: card.answer.trim(),
+  }));
+
+  return db.insert(cards).values(values).returning();
 };
