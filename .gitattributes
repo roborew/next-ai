@@ -1,0 +1,4 @@
+# Git runs hooks with sh, so a CRLF checkout turns `vp staged` into `staged\r`
+# and every Vite+ hook fails with "Command ... not found" (exit code 2).
+# Pin LF for hook scripts regardless of core.autocrlf.
+.vite-hooks/** text eol=lf
