@@ -2,7 +2,8 @@ import { Client, Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
-const APP_TABLES = '"cards", "card_sets"';
+const APP_TABLES =
+  '"cards", "card_sets", "chat_history", "session", "account", "verification", "user"';
 
 const requireDatabaseUrl = () => {
   const connectionString = process.env.DATABASE_URL;

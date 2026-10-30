@@ -86,6 +86,12 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       DATABASE_URL: e2eDatabaseUrl,
+      /* Better Auth needs a base URL that matches the port this server uses,
+         and a secret long enough to satisfy its minimum. The fallback is
+         test-only: the e2e database is disposable. */
+      BETTER_AUTH_URL: baseURL,
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET ?? "e2e-only-better-auth-secret-32-chars-min",
       /* Keep the e2e dev server's build state and lockfile separate so it can
          run while `pnpm dev` is also running. */
       NEXT_DIST_DIR: ".next-e2e",

@@ -1,96 +1,86 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import type { UIMessage } from "ai";
 
-const { useChatMock, sendMessageMock } = vi.hoisted(() => ({
-  useChatMock: vi.fn(),
-  sendMessageMock: vi.fn(),
+const { getSessionMock, redirectMock, getChatHistoryMock } = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
+  redirectMock: vi.fn(),
+  getChatHistoryMock: vi.fn(),
 }));
 
-vi.mock("@ai-sdk/react", () => ({
-  useChat: useChatMock,
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
 }));
 
-import Chat from "./page";
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
+}));
 
-const conversation = [
-  {
-    id: "message-1",
-    role: "user",
-    parts: [{ type: "text", text: "Hello" }],
-  },
-  {
-    id: "message-2",
-    role: "assistant",
-    parts: [{ type: "text", text: "Hi! How can I help?" }],
-  },
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession: getSessionMock } },
+}));
+
+vi.mock("@/lib/chat-history", () => ({
+  getChatHistory: getChatHistoryMock,
+}));
+
+// The client component is exercised by its own test file; here it only needs to
+// expose the history it was given.
+vi.mock("./chat", () => ({
+  default: ({ initialMessages = [] }: { initialMessages?: UIMessage[] }) => (
+    <div data-testid="chat">
+      {initialMessages.map((message) => (
+        <p key={message.id}>{message.parts.map((part) => (part.type === "text" ? part.text : ""))}</p>
+      ))}
+    </div>
+  ),
+}));
+
+import ChatPage from "./page";
+
+const history: UIMessage[] = [
+  { id: "message-1", role: "user", parts: [{ type: "text", text: "Hello" }] },
+  { id: "message-2", role: "assistant", parts: [{ type: "text", text: "Hi!" }] },
 ];
 
 beforeEach(() => {
-  sendMessageMock.mockReset();
-  useChatMock.mockReset();
-  useChatMock.mockReturnValue({
-    messages: conversation,
-    sendMessage: sendMessageMock,
+  getSessionMock.mockReset();
+  redirectMock.mockReset();
+  getChatHistoryMock.mockReset();
+  getChatHistoryMock.mockResolvedValue([]);
+  // Next's redirect throws to stop rendering; mimic that so the page does not
+  // continue to the data layer after redirecting.
+  redirectMock.mockImplementation(() => {
+    throw new Error("NEXT_REDIRECT");
   });
 });
 
-describe("Chat", () => {
-  it("renders each message with its role label", () => {
-    render(<Chat />);
+describe("Chat page", () => {
+  it("redirects a signed-out visitor to the login page", async () => {
+    getSessionMock.mockResolvedValue(null);
 
-    expect(screen.getByText("Hello").parentElement).toHaveTextContent("User: Hello");
-    expect(screen.getByText("Hi! How can I help?").parentElement).toHaveTextContent(
-      "AI: Hi! How can I help?",
-    );
+    await expect(ChatPage()).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(redirectMock).toHaveBeenCalledWith("/login");
+    expect(getChatHistoryMock).not.toHaveBeenCalled();
   });
 
-  it("renders a placeholder input when there is no conversation", () => {
-    useChatMock.mockReturnValue({ messages: [], sendMessage: sendMessageMock });
+  it("renders the signed-in user's stored conversation", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    getChatHistoryMock.mockResolvedValue(history);
 
-    render(<Chat />);
+    render(await ChatPage());
 
-    expect(screen.getByPlaceholderText("Say something...")).toBeInTheDocument();
-    expect(screen.queryByText("User:")).not.toBeInTheDocument();
+    expect(getChatHistoryMock).toHaveBeenCalledWith("user-1");
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+    expect(screen.getByText("Hi!")).toBeInTheDocument();
   });
 
-  it("does not render non-text message parts", () => {
-    useChatMock.mockReturnValue({
-      messages: [
-        {
-          id: "message-1",
-          role: "assistant",
-          parts: [{ type: "reasoning", text: "thinking" }],
-        },
-      ],
-      sendMessage: sendMessageMock,
-    });
+  it("renders the chat without history for a new user", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: "user-2" } });
 
-    render(<Chat />);
+    render(await ChatPage());
 
-    expect(screen.queryByText("thinking")).not.toBeInTheDocument();
-  });
-
-  it("updates the input as the user types", async () => {
-    const user = userEvent.setup();
-    render(<Chat />);
-
-    const input = screen.getByPlaceholderText("Say something...");
-    await user.type(input, "What is React?");
-
-    expect(input).toHaveValue("What is React?");
-  });
-
-  it("sends the current input and clears it on submit", async () => {
-    const user = userEvent.setup();
-    render(<Chat />);
-
-    const input = screen.getByPlaceholderText("Say something...");
-    await user.type(input, "What is React?");
-    await user.keyboard("{Enter}");
-
-    expect(sendMessageMock).toHaveBeenCalledTimes(1);
-    expect(sendMessageMock).toHaveBeenCalledWith({ text: "What is React?" });
-    expect(input).toHaveValue("");
+    expect(screen.getByTestId("chat")).toBeEmptyDOMElement();
   });
 });
