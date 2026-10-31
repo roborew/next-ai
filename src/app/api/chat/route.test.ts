@@ -6,15 +6,11 @@ const {
   convertToModelMessagesMock,
   createUIMessageStreamResponseMock,
   toUIMessageStreamMock,
-  rateLimitMock,
-  ratelimitConstructorMock,
-  slidingWindowMock,
-  redisFromEnvMock,
+  enforceRateLimitMock,
   getSessionMock,
   getChatHistoryMock,
   saveChatHistoryMock,
   generateIdMock,
-  rateLimitConfig,
   uiStreamArgs,
   modelStream,
   uiMessageStream,
@@ -25,11 +21,6 @@ const {
   const uiMessageStream = { marker: "ui-message-stream" };
   const response = { marker: "response" };
   const convertedMessages = [{ role: "user", content: "converted" }];
-  // Captured at module load, before the test runner clears mock call history.
-  const rateLimitConfig: {
-    slidingWindowArgs?: unknown[];
-    constructorArgs?: unknown;
-  } = {};
   const uiStreamArgs: {
     current?: {
       originalMessages?: UIMessage[];
@@ -42,7 +33,6 @@ const {
     uiMessageStream,
     response,
     convertedMessages,
-    rateLimitConfig,
     uiStreamArgs,
     streamTextMock: vi.fn(() => ({ stream: modelStream })),
     convertToModelMessagesMock: vi.fn((_messages: UIMessage[]) =>
@@ -53,17 +43,7 @@ const {
       uiStreamArgs.current = args as (typeof uiStreamArgs)["current"];
       return uiMessageStream;
     }),
-    rateLimitMock: vi.fn(),
-    slidingWindowMock: vi.fn((...args: unknown[]) => {
-      rateLimitConfig.slidingWindowArgs = args;
-      return "sliding-window-limiter";
-    }),
-    // Must be a regular function so it can be used with `new`.
-    ratelimitConstructorMock: vi.fn(function (config: unknown) {
-      rateLimitConfig.constructorArgs = config;
-      return { limit: rateLimitMock };
-    }),
-    redisFromEnvMock: vi.fn(() => ({ marker: "redis" })),
+    enforceRateLimitMock: vi.fn(),
     getSessionMock: vi.fn(),
     getChatHistoryMock: vi.fn(),
     saveChatHistoryMock: vi.fn(),
@@ -79,19 +59,11 @@ vi.mock("ai", () => ({
   generateId: generateIdMock,
 }));
 
-vi.mock("@upstash/ratelimit", () => ({
-  Ratelimit: Object.assign(ratelimitConstructorMock, {
-    slidingWindow: slidingWindowMock,
-  }),
-}));
-
-vi.mock("@upstash/redis", () => ({
-  Redis: { fromEnv: redisFromEnvMock },
-}));
-
 vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: getSessionMock } },
 }));
+
+vi.mock("@/lib/rate-limit", () => ({ enforceRateLimit: enforceRateLimitMock }));
 
 vi.mock("@/lib/chat-history", () => ({
   getChatHistory: getChatHistoryMock,
@@ -130,8 +102,8 @@ beforeEach(() => {
   convertToModelMessagesMock.mockClear();
   createUIMessageStreamResponseMock.mockClear();
   toUIMessageStreamMock.mockClear();
-  rateLimitMock.mockReset();
-  rateLimitMock.mockResolvedValue({ success: true, reset: Date.now() + 60_000 });
+  enforceRateLimitMock.mockReset();
+  enforceRateLimitMock.mockResolvedValue(null);
   getSessionMock.mockReset();
   getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
   getChatHistoryMock.mockReset();
@@ -151,7 +123,7 @@ describe("POST /api/chat", () => {
     const result = await post({ messages: [userMessage] });
 
     expect(result.status).toBe(401);
-    expect(rateLimitMock).not.toHaveBeenCalled();
+    expect(enforceRateLimitMock).not.toHaveBeenCalled();
     expect(streamTextMock).not.toHaveBeenCalled();
     expect(convertToModelMessagesMock).not.toHaveBeenCalled();
   });
@@ -241,43 +213,25 @@ describe("POST /api/chat", () => {
     ]);
   });
 
-  it("rate limits by the client IP from x-forwarded-for", async () => {
-    await post({ messages: [userMessage] }, { "x-forwarded-for": " 203.0.113.7 , 10.0.0.1" });
-
-    expect(rateLimitMock).toHaveBeenCalledWith("203.0.113.7");
-  });
-
-  it("falls back to a local key when x-forwarded-for is missing", async () => {
+  it("rate limits the signed-in user", async () => {
     await post({ messages: [userMessage] });
 
-    expect(rateLimitMock).toHaveBeenCalledWith("local");
+    expect(enforceRateLimitMock).toHaveBeenCalledWith("chat", "user-1");
   });
 
   it("returns 429 with Retry-After without streaming when the limit is exceeded", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
-    rateLimitMock.mockResolvedValue({
-      success: false,
-      reset: Date.now() + 30_000,
-    });
+    const limited = Response.json(
+      { error: "Too many requests. Please try again shortly." },
+      { status: 429, headers: { "Retry-After": "30" } },
+    );
+    enforceRateLimitMock.mockResolvedValueOnce(limited);
 
     const result = await post({ messages: [userMessage] });
 
+    expect(result).toBe(limited);
     expect(result.status).toBe(429);
     expect(result.headers.get("Retry-After")).toBe("30");
-    await expect(result.json()).resolves.toEqual({
-      error: "Too many requests. Please try again shortly.",
-    });
     expect(streamTextMock).not.toHaveBeenCalled();
     expect(convertToModelMessagesMock).not.toHaveBeenCalled();
-  });
-
-  it("configures a sliding window of 10 requests per minute", () => {
-    expect(rateLimitConfig.slidingWindowArgs).toEqual([10, "1 m"]);
-    expect(rateLimitConfig.constructorArgs).toMatchObject({
-      redis: { marker: "redis" },
-      limiter: "sliding-window-limiter",
-      prefix: "ratelimit:chat",
-    });
   });
 });

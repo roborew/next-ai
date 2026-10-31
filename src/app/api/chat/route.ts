@@ -6,46 +6,19 @@ import {
   toUIMessageStream,
   generateId,
 } from "ai";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-import { auth } from "@/lib/auth";
+
+import { requireSession } from "@/lib/api-guard";
 import { getChatHistory, saveChatHistory } from "@/lib/chat-history";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
-const redis = Redis.fromEnv();
+export async function POST(request: Request) {
+  const session = await requireSession(request);
+  if (session instanceof Response) return session;
 
-const rateLimit = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(10, "1 m"), // 10 requests per minute
-  prefix: "ratelimit:chat",
-});
+  const limited = await enforceRateLimit("chat", session.user.id);
+  if (limited) return limited;
 
-export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: req.headers });
-
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Only trust this header when your hosting proxy sets it reliably.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-
-  const { success, reset } = await rateLimit.limit(ip);
-
-  if (!success) {
-    const retryAfter = Math.max(1, Math.ceil((reset - Date.now()) / 1000));
-
-    return Response.json(
-      { error: "Too many requests. Please try again shortly." },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(retryAfter),
-        },
-      },
-    );
-  }
-
-  const body: { messages?: UIMessage[] } | null = await req.json().catch(() => null);
+  const body: { messages?: UIMessage[] } | null = await request.json().catch(() => null);
   const incoming = body?.messages?.filter(
     (message) => typeof message?.id === "string" && Array.isArray(message?.parts),
   );

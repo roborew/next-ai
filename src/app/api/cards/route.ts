@@ -5,6 +5,8 @@ import { z } from "zod";
 import { CardsSchema } from "@/lib/card-schema";
 import { cards, createCards, getCardSet } from "@/lib/data";
 import { CARD_PROMPT } from "@/lib/prompt";
+import { requireSession } from "@/lib/api-guard";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 const MODEL = "openai/o4-mini";
 const MAX_TEXT_LENGTH = 20_000;
@@ -17,6 +19,12 @@ const RequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const session = await requireSession(request);
+  if (session instanceof Response) return session;
+
+  const limited = await enforceRateLimit("cards", session.user.id);
+  if (limited) return limited;
+
   const body: unknown = await request.json().catch(() => null);
   const parsed = RequestSchema.safeParse(body);
 
