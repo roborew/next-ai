@@ -9,6 +9,8 @@ const {
   getCardSetMock,
   createCardsMock,
   revalidatePathMock,
+  getSessionMock,
+  enforceRateLimitMock,
 } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
   outputObjectMock: vi.fn(),
@@ -16,6 +18,8 @@ const {
   getCardSetMock: vi.fn(),
   createCardsMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+  getSessionMock: vi.fn(),
+  enforceRateLimitMock: vi.fn(),
 }));
 
 vi.mock("ai", () => ({
@@ -31,6 +35,12 @@ vi.mock("@/lib/data", () => ({
   getCardSet: getCardSetMock,
   createCards: createCardsMock,
 }));
+
+vi.mock("@/lib/auth", () => ({
+  auth: { api: { getSession: getSessionMock } },
+}));
+
+vi.mock("@/lib/rate-limit", () => ({ enforceRateLimit: enforceRateLimitMock }));
 
 import { CardsSchema, POST } from "./route";
 
@@ -120,9 +130,51 @@ beforeEach(() => {
   createCardsMock.mockResolvedValue(savedCards);
 
   revalidatePathMock.mockReset();
+
+  getSessionMock.mockReset();
+  getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+
+  enforceRateLimitMock.mockReset();
+  enforceRateLimitMock.mockResolvedValue(null);
 });
 
 describe("POST /api/cards", () => {
+  it("rejects requests without a session before rate limiting or generating", async () => {
+    getSessionMock.mockResolvedValue(null);
+
+    const response = await post({ cardSetId, text });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(enforceRateLimitMock).not.toHaveBeenCalled();
+    expect(getCardSetMock).not.toHaveBeenCalled();
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(createCardsMock).not.toHaveBeenCalled();
+  });
+
+  it("rate limits the signed-in user", async () => {
+    await post({ cardSetId, text });
+
+    expect(enforceRateLimitMock).toHaveBeenCalledWith("cards", "user-1");
+  });
+
+  it("returns 429 with Retry-After without generating when the limit is exceeded", async () => {
+    const limited = Response.json(
+      { error: "Too many requests. Please try again shortly." },
+      { status: 429, headers: { "Retry-After": "30" } },
+    );
+    enforceRateLimitMock.mockResolvedValueOnce(limited);
+
+    const response = await post({ cardSetId, text });
+
+    expect(response).toBe(limited);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("30");
+    expect(getCardSetMock).not.toHaveBeenCalled();
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(createCardsMock).not.toHaveBeenCalled();
+  });
+
   it("generates structured cards from the submitted text", async () => {
     await post({ cardSetId, text });
 
